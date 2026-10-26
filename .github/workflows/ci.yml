@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  app:
+    name: macOS app (build + unit tests)
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+      - name: Toolchain
+        run: swift --version
+      - name: Build
+        run: swift build -c release
+      - name: Test
+        run: swift test
+      - name: Bundle .app
+        run: scripts/bundle.sh release
+      - name: Zip
+        run: ditto -c -k --keepParent build/Wingbar.app build/Wingbar.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Wingbar-${{ github.sha }}
+          path: app/build/Wingbar.zip
