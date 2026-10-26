@@ -88,12 +88,13 @@ The move engine never acts while the menu bar is hidden (full-screen apps) or wh
 
 ## Install
 
-There's no signed release yet. Build it from source (below); it takes about a minute.
+1. Download **Wingbar-…-macOS.zip** from the [latest release](https://github.com/Naman503/wingbar/releases/latest), unzip it, and move **Wingbar** to Applications.
+2. Open it. Wingbar isn't notarized yet, so the first time macOS blocks it: open **System Settings → Privacy & Security** and click **Open Anyway**.
+3. Grant the permissions it asks for:
+   - **Accessibility (required):** to see which app owns each icon, read and press their menus, and move icons.
+   - **Screen Recording (optional):** to picture icons exactly as they look. With *Capture once*, it's only used for icons Wingbar hasn't seen before, and you can turn it off entirely.
 
-On first launch Wingbar asks for:
-
-- **Accessibility (required):** to see which app owns each icon, read and press their menus, and move icons.
-- **Screen Recording (optional):** to picture icons exactly as they look. With *Capture once*, it's only used for icons Wingbar hasn't seen before, and you can turn it off entirely.
+Or [build it from source](#build-from-source).
 
 ## Privacy
 

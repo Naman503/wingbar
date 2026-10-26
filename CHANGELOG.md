@@ -4,6 +4,8 @@
 
 ## 0.2.0: 2026-10-26
 
+The first public release. Icons your MacBook's notch hides now appear in the free space on the other side of it, the **Left Wing**, looking and working like the real ones, and you can arrange both sides by drag and drop.
+
 ### Added
 - **Left Wing:** icons macOS hides under the notch (or can't fit at all, or that sit behind Wingbar's closed line) appear in the free menu bar space left of the notch, as pictures of the real icons. It re-fits as the front app's menus change and hides over full-screen apps.
 - **Opening hidden icons:** a native copy of the icon's menu under its Left Wing icon (read and pressed through Accessibility); an Accessibility press for popover apps; and a **move engine** that ⌘-drags icons which only open from their own icon into view, clicks them, and puts them back in their exact slot.
