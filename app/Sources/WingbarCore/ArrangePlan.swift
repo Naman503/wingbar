@@ -19,10 +19,12 @@ public enum ArrangePlan {
         }
     }
 
-    /// Steps in the order to perform them (left to right in `desired`).
-    /// `current` and `desired` must hold the same ids.
-    public static func steps(current: [String], desired: [String]) -> [Step] {
-        let staying = Set(longestCommonSubsequence(current, desired))
+    /// Steps in the order to perform them (left to right in `desired`), or nil
+    /// when `fixed` icons (ones whose app ignores moves) would have to change
+    /// order among themselves. `current` and `desired` must hold the same ids.
+    public static func steps(current: [String], desired: [String], fixed: Set<String> = []) -> [Step]? {
+        let staying = Set(longestCommonSubsequence(current, desired, mustKeep: fixed))
+        guard fixed.filter({ desired.contains($0) }).isSubset(of: staying) else { return nil }
         return desired.indices.compactMap { i in
             let id = desired[i]
             guard !staying.contains(id) else { return nil }
@@ -41,18 +43,25 @@ public enum ArrangePlan {
         return result
     }
 
-    static func longestCommonSubsequence(_ a: [String], _ b: [String]) -> [String] {
+    /// Longest common subsequence, weighted so `mustKeep` items are kept
+    /// whenever their relative order allows it.
+    static func longestCommonSubsequence(_ a: [String], _ b: [String], mustKeep: Set<String> = []) -> [String] {
         guard !a.isEmpty, !b.isEmpty else { return [] }
+        let heavy = a.count + 1 // one kept fixed icon outweighs every movable one
         var table = Array(repeating: Array(repeating: 0, count: b.count + 1), count: a.count + 1)
         for i in stride(from: a.count - 1, through: 0, by: -1) {
             for j in stride(from: b.count - 1, through: 0, by: -1) {
-                table[i][j] = a[i] == b[j] ? table[i + 1][j + 1] + 1 : max(table[i + 1][j], table[i][j + 1])
+                if a[i] == b[j] {
+                    table[i][j] = table[i + 1][j + 1] + (mustKeep.contains(a[i]) ? heavy : 1)
+                } else {
+                    table[i][j] = max(table[i + 1][j], table[i][j + 1])
+                }
             }
         }
         var result = [String]()
         var i = 0, j = 0
         while i < a.count, j < b.count {
-            if a[i] == b[j] {
+            if a[i] == b[j], table[i][j] == table[i + 1][j + 1] + (mustKeep.contains(a[i]) ? heavy : 1) {
                 result.append(a[i]); i += 1; j += 1
             } else if table[i + 1][j] >= table[i][j + 1] {
                 i += 1

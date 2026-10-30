@@ -551,7 +551,7 @@ final class LeftWingController {
     /// close, then move it back where it was.
     private func reveal(_ item: MenuBarItem) {
         guard !isRevealing else { return }
-        guard prefs.moveToOpen, item.windowID != nil, item.pid != 0 else { return showStuckHint(item) }
+        guard prefs.moveToOpen, item.windowID != nil, item.pid != 0, !prefs.unmovable.contains(item.id) else { return showStuckHint(item) }
         isRevealing = true
         Task {
             defer {
@@ -571,7 +571,12 @@ final class LeftWingController {
             let right = index.flatMap { $0 + 1 < onBar.count ? onBar[$0 + 1].windowID : nil }
 
             do {
-                try await mover.move(window: window, pid: current.pid, to: .rightOf(divider))
+                do {
+                    try await mover.move(window: window, pid: current.pid, to: .rightOf(divider))
+                } catch MoveEngine.Failure.ignored {
+                    store.prefs.unmovable.insert(item.id)
+                    return showStuckHint(item)
+                }
                 let baseline = MoveEngine.windowIDs(of: current.pid)
                 let opened = try await mover.click(window: window, pid: current.pid)
                 if !opened, let frame = MoveEngine.bounds(of: window), let screen = NSScreen.screens.first {
@@ -648,6 +653,8 @@ final class LeftWingController {
         guard let screen = NSScreen.screens.first, let span = MenuBarScanner.currentNotch()?.notchSpan else { return }
         let message = item.windowID == nil
             ? "macOS has no room for \(hintName(item)) at all, and it only opens from its own icon. Quit or hide a few menu bar apps to make space."
+            : prefs.unmovable.contains(item.id)
+            ? "\(hintName(item)) only opens from its own icon and ignores moves from other apps. In Arrange, move it into the menu bar list, or ⌘-drag it there yourself."
             : "Couldn't move \(hintName(item)) into view right now. Try again in a moment."
         hint.show(message, below: NSPoint(x: (span.lowerBound + span.upperBound) / 2, y: hintAnchorY), on: screen)
     }

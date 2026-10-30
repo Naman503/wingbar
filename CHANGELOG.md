@@ -2,10 +2,16 @@
 
 ## Unreleased
 
+### Changed
+- **Arrange, then Apply.** Dragging rows only edits a draft; *Apply* moves the real icons in one pass (with *Revert* to discard). The plan covers both sides of the line at once and moves as few icons as possible.
+- **Icons that ignore moves** (e.g. Cloudflare WARP) are detected, tagged "Won't move", remembered, and the other icons are arranged around them. The Left Wing explains instead of trying to move them into view.
+
 ### Fixed
 - **Arranging moves the real icons, always.** A move planner keeps the longest run of icons already in order and moves only the rest, each next to a neighbour whose edge is visible (so "Slack before WARP" becomes one move: WARP right of Slack). When both neighbours are under the notch, it rebuilds the rest of the order next to Wingbar's line instead of silently changing only the list.
 - Both Arrange lists always show the real menu bar order; icons with no room at all are pinned at the top and can't be dragged. Each hidden row shows where it is now: in the menu bar, in the Left Wing, or no room.
 - The menu bar list no longer empties while the screen is locked or a full-screen app is in front.
+- Moves next to the notch are no longer reported as failed while macOS is still settling them; Apply judges by the final order.
+- The menu bar counts as hidden when no icon is drawn (full-screen apps report the menu bar window anyway), so nothing moves then.
 - Scanning is about 20× faster (3.5 s → 0.16 s first scan, ~13 ms after): apps are asked in parallel, and apps without menu bar icons are re-checked only every 30 s.
 - Launch at login follows the app if it moves (e.g. into Applications); new `--launch-at-login` flag.
 

@@ -51,6 +51,8 @@ public struct WingPreferences: Codable, Equatable, Sendable {
     public var groups: [ItemGroup] = []
     /// Items that ignored every remote click; Wingbar reveals them instead of retrying.
     public var needsDirectClick: Set<String> = []
+    /// Items whose app ignores synthetic moves; arranging plans around them.
+    public var unmovable: Set<String> = []
 
     public init() {}
 
@@ -90,6 +92,7 @@ public struct WingPreferences: Codable, Equatable, Sendable {
         rules = try c.decodeIfPresent([String: ItemRule].self, forKey: .rules) ?? base.rules
         groups = try c.decodeIfPresent([ItemGroup].self, forKey: .groups) ?? base.groups
         needsDirectClick = try c.decodeIfPresent(Set<String>.self, forKey: .needsDirectClick) ?? base.needsDirectClick
+        unmovable = try c.decodeIfPresent(Set<String>.self, forKey: .unmovable) ?? base.unmovable
     }
 }
 

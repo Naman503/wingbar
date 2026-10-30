@@ -37,13 +37,14 @@ enum MenuBarState {
     /// the user has the menu bar set to hide automatically.
     static func isMenuBarVisible() -> Bool {
         if UserDefaults.standard.bool(forKey: "_HIHideMenuBar") || isFrontWindowFullScreen() { return false }
+        // The window server keeps reporting the menu bar's own window even in a
+        // full-screen app, but status icons are only drawn while the bar shows.
         let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
-        let level = Int(CGWindowLevelForKey(.mainMenuWindow))
+        let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
         return list.contains { w in
-            guard (w[kCGWindowLayer as String] as? Int) == level,
-                  (w[kCGWindowOwnerName as String] as? String) == "Window Server",
+            guard (w[kCGWindowLayer as String] as? Int) == statusLevel,
                   let b = w[kCGWindowBounds as String] as? [String: CGFloat] else { return false }
-            return b["Y"] == 0 && (b["Height"] ?? 0) < 60 && (b["Width"] ?? 0) > 200
+            return b["Y"] == 0 && (b["Height"] ?? 0) < 60 && (b["Height"] ?? 0) >= 20
         }
     }
 

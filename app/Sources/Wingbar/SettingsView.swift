@@ -193,7 +193,7 @@ private struct ArrangeTab: View {
                     } header: {
                         Text("Always in the menu bar")
                     } footer: {
-                        Text("Right of Wingbar's line, left to right as in the menu bar. Drag rows to reorder, or between the lists to show or hide; Wingbar moves the real icons. Clock and Control Centre stay where macOS puts them.")
+                        Text("Right of Wingbar's line, left to right as in the menu bar. Drag rows to reorder, or between the lists to show or hide, then press Apply. Clock and Control Centre stay where macOS puts them.")
                     }
                     Section {
                         ForEach(arranger.leftWingRows) { row in
@@ -203,18 +203,27 @@ private struct ArrangeTab: View {
                     } header: {
                         Text("Left of the line: menu bar when there's room, else Left Wing")
                     } footer: {
-                        Text("Left to right, exactly as in the menu bar. macOS fills the bar from the right, so the icons at the bottom of this list stay in the menu bar and the ones at the top overflow into the Left Wing (all of them in Left Wing mode). Drag a row up to send it to the Left Wing, down to keep it in the menu bar. The menu on each row sets where Wingbar may show it.")
+                        Text("Left to right, exactly as in the menu bar. macOS fills the bar from the right, so the icons at the bottom of this list stay in the menu bar and the ones at the top overflow into the Left Wing (all of them in Left Wing mode). Drag a row up to send it to the Left Wing, down to keep it in the menu bar, then press Apply. The menu on each row sets where Wingbar may show it.")
                     }
                     GroupsSection(store: store)
                 }
-                HStack {
+                HStack(spacing: 10) {
                     if let message = arranger.message {
-                        Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                    } else if arranger.hasChanges {
+                        Text("Arranged, not applied yet. Apply moves the real icons in one go.")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                     if arranger.busy { ProgressView().controlSize(.small) }
-                    Button("Refresh") { Task { await arranger.refresh() } }
-                        .disabled(arranger.busy)
+                    if arranger.hasChanges && !arranger.busy {
+                        Button("Revert", action: arranger.revert)
+                        Button("Apply", action: arranger.apply)
+                            .keyboardShortcut(.defaultAction)
+                    } else {
+                        Button("Refresh") { Task { await arranger.refresh() } }
+                            .disabled(arranger.busy)
+                    }
                 }
                 .padding(10)
             }
@@ -259,11 +268,13 @@ private struct ArrangeRow: View {
             }
             .frame(width: 44, height: 18)
             Text(row.item.displayName).lineLimit(1)
-            if side == .leftWing { WhereTag(row: row, leftWingMode: store.prefs.keepHiddenClosed) }
+            if side == .leftWing || row.ignoresMoves { WhereTag(row: row, leftWingMode: store.prefs.keepHiddenClosed) }
             if !row.movable {
                 Image(systemName: row.item.windowID == nil ? "exclamationmark.triangle" : "lock")
                     .foregroundStyle(.secondary)
-                    .help(row.item.windowID == nil ? "macOS has no room for this icon at all, so it can't be moved." : "macOS keeps this icon in place.")
+                    .help(row.item.windowID == nil ? "macOS has no room for this icon at all, so it can't be moved."
+                          : row.ignoresMoves ? "This app ignores moves from other apps. ⌘-drag it yourself; Wingbar arranges the others around it."
+                          : "macOS keeps this icon in place.")
             }
             if store.prefs.needsDirectClick.contains(row.item.id) {
                 Image(systemName: "hand.tap").foregroundStyle(.secondary)
@@ -316,7 +327,7 @@ private struct WhereTag: View {
     let leftWingMode: Bool
 
     var body: some View {
-        let (text, color): (String, Color) = row.item.windowID == nil
+        let (text, color): (String, Color) = row.ignoresMoves ? ("Won't move", .secondary) : row.item.windowID == nil
             ? ("No room", .orange)
             : row.isDrawn && !leftWingMode ? ("In menu bar", .green) : ("Left Wing", .accentColor)
         Text(text)

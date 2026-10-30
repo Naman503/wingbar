@@ -273,7 +273,13 @@ Task {
             return CGRect(x: b["X"]!, y: b["Y"]!, width: b["Width"]!, height: b["Height"]!)
         }
         guard let start = bounds(item.windowID), let tb = bounds(target.windowID) else { say("no bounds"); break }
-        let dest = CGPoint(x: leftOf ? tb.minX : tb.maxX, y: tb.minY)
+        // Off-screen target (hidden section closed): Thaw-style. Drop at the target's
+        // vertical middle, and aim the mouse-down at the notch, which has nothing to hit.
+        let offscreen = (leftOf ? tb.minX : tb.maxX) <= 0
+        let dest = CGPoint(x: leftOf ? tb.minX : tb.maxX, y: offscreen ? tb.midY : tb.minY)
+        let notchMid = notch().map { ($0.minX + $0.maxX) / 2 } ?? 900
+        let downPoint = offscreen ? CGPoint(x: notchMid, y: dest.y) : dest
+        say("offscreen=\(offscreen) down at \(downPoint) up at \(dest)")
         say("moving \(item.app) (win \(item.windowID) at \(Int(start.minX))) right of \(target.app) (maxX \(Int(tb.maxX))) pid \(item.pid)")
         let mode = CommandLine.arguments.contains("--hid") ? "hid" : "session+pid"
         let source = CGEventSource(stateID: .hidSystemState)
@@ -282,11 +288,12 @@ Task {
         permit?.setLocalEventsFilterDuringSuppressionState([.permitLocalMouseEvents, .permitLocalKeyboardEvents, .permitSystemDefinedEvents], state: .eventSuppressionStateRemoteMouseDrag)
         permit?.localEventsSuppressionInterval = 0
         let original = CGEvent(source: nil)?.location ?? .zero
-        CGWarpMouseCursorPosition(dest)
+        if !offscreen { CGWarpMouseCursorPosition(dest) }
         CGDisplayHideCursor(CGMainDisplayID())
         try? await Task.sleep(for: .milliseconds(20))
         func make(_ type: CGEventType, window: CGWindowID, flags: CGEventFlags) -> CGEvent? {
-            guard let e = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: dest, mouseButton: .left) else { return nil }
+            let at = type == .leftMouseDown ? downPoint : dest
+            guard let e = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: at, mouseButton: .left) else { return nil }
             e.flags = flags
             e.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
             e.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: Int64(window))
@@ -305,9 +312,9 @@ Task {
             if let up = make(.leftMouseUp, window: target.windowID, flags: []) { send(up) }
             try? await Task.sleep(for: .milliseconds(40))
         }
-        CGWarpMouseCursorPosition(original)
+        if !offscreen { CGWarpMouseCursorPosition(original) }
         CGDisplayShowCursor(CGMainDisplayID())
-        try? await Task.sleep(for: .milliseconds(500))
+        try? await Task.sleep(for: .milliseconds(800))
         let end = bounds(item.windowID)
         let ax = item.ax.flatMap(axFrame)
         say("mode \(mode): window x \(Int(start.minX)) -> mid \(Int(mid?.minX ?? -1)) -> end \(Int(end?.minX ?? -1)); AX now x \(Int(ax?.minX ?? -1)); target maxX now \(Int(bounds(target.windowID)?.maxX ?? -1))")

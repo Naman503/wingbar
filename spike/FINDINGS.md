@@ -67,3 +67,9 @@ The app is signed with the Apple Development identity, so the Accessibility and 
 * **Drop points under the notch land in the wrong slot.** Only drop at visible points: right of Wingbar's divider (whose right edge is always on screen) to move an item in; left of its original right neighbour (or right of its left one) to move it back; else left of the expanded divider.
 * Verified end to end: Claude Account Switcher moved from under the notch into view, its popover opened from the synthetic click, and it returned to its exact slot after closing.
 * **Danger:** synthetic clicks at y≈0 while the menu bar is hidden (a full-screen app) land in that app. The engine checks that the menu bar is visible and that the user isn't using the mouse before posting anything.
+
+## Arranging (2026-10-31)
+
+* **Some apps ignore synthetic moves entirely** (Cloudflare WARP): the icon never budges, whichever process the events go to. Wingbar now detects this (no displacement over two attempts), remembers the icon as fixed, and plans the other icons around it.
+* **Drops just right of the notch settle slowly.** A drop next to an undrawn icon 15 pt from the notch looked like a failure after 1.2 s but had landed when checked later. Wingbar now re-checks at +2.5 s, and Apply judges success by the final order (re-checking after 2 s more).
+* `move` in the spike also has an untested Thaw-style off-screen drop (hidden section closed, mouse-down aimed at the notch, mouse-up at the off-screen drop point). It wasn't needed in the end.

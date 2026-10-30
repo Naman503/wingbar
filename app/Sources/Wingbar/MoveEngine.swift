@@ -26,6 +26,8 @@ final class MoveEngine {
 
     enum Failure: Error {
         case menuBarHidden, userBusy, noBounds, unsafeDropPoint, didNotMove
+        /// The icon never budged: its app ignores synthetic moves (e.g. Cloudflare WARP).
+        case ignored
     }
 
     private let eventSource = CGEventSource(stateID: .hidSystemState)
@@ -43,16 +45,23 @@ final class MoveEngine {
 
     /// Moves the item's window to `destination`, retrying a couple of times.
     func move(window: CGWindowID, pid: pid_t, to destination: Destination) async throws {
+        var origin: CGRect?
+        var everMoved = false
         for attempt in 1...3 {
             try await waitUntilSafe()
             guard let start = Self.bounds(of: window), let target = Self.bounds(of: destination.target) else { throw Failure.noBounds }
             if Self.isPlaced(start, relativeTo: target, destination) { return }
+            if origin == nil { origin = start }
             let point: CGPoint
             switch destination {
             case .rightOf: point = CGPoint(x: target.maxX, y: target.minY)
             case .leftOf: point = CGPoint(x: target.minX, y: target.minY)
             }
-            guard Self.isSafeDropPoint(point) else { throw Failure.unsafeDropPoint }
+            guard Self.isSafeDropPoint(point) else {
+                Self.log("move \(window) → \(destination): unsafe drop point \(point)")
+                throw Failure.unsafeDropPoint
+            }
+            Self.log("move \(window) (pid \(pid)) attempt \(attempt): from \(start) to \(destination) target \(target) at \(point)")
 
             await withHiddenCursor(at: point) {
                 self.post(self.mouseEvent(.leftMouseDown, at: point, window: window, pid: pid, flags: .maskCommand, isMove: true), to: pid)
@@ -62,11 +71,43 @@ final class MoveEngine {
                     try? await Task.sleep(for: .milliseconds(40))
                 }
             }
-            try? await Task.sleep(for: .milliseconds(250 * attempt))
-            if let now = Self.bounds(of: window), let target = Self.bounds(of: destination.target),
-               Self.isPlaced(now, relativeTo: target, destination) { return }
+            // Window frames lag behind the menu bar's re-layout, so give the
+            // window list time to catch up before judging the move.
+            // Next to the notch, macOS can take a couple of seconds to settle.
+            for wait in [250, 600, 1200, 2500] {
+                try? await Task.sleep(for: .milliseconds(wait))
+                let now = Self.bounds(of: window), target = Self.bounds(of: destination.target)
+                Self.log("  after +\(wait) ms: item \(now.map { "\($0)" } ?? "gone") target \(target.map { "\($0)" } ?? "gone")")
+                if let now, let target, Self.isPlaced(now, relativeTo: target, destination) { return }
+                if let now, let origin, abs(now.minX - origin.minX) >= 1 { everMoved = true }
+            }
+            // Two attempts without the slightest movement: the app isn't listening.
+            if attempt == 2, !everMoved { break }
         }
-        throw Failure.didNotMove
+        Self.log(everMoved ? "  gave up: did not land" : "  gave up: the app ignores synthetic moves")
+        throw everMoved ? Failure.didNotMove : Failure.ignored
+    }
+
+    // MARK: - Log
+
+    /// ~/Library/Logs/Wingbar/moves.log: every move attempt and its outcome,
+    /// for diagnosing icons that won't move. Kept to the last ~200 KB.
+    static func log(_ line: String) {
+        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Wingbar", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("moves.log")
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        let data = Data("\(stamp) \(line)\n".utf8)
+        if let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int), size > 200_000 {
+            try? FileManager.default.removeItem(at: file)
+        }
+        if let handle = try? FileHandle(forWritingTo: file) {
+            handle.seekToEndOfFile()
+            handle.write(data)
+            try? handle.close()
+        } else {
+            try? data.write(to: file)
+        }
     }
 
     // MARK: - Clicking
@@ -79,7 +120,11 @@ final class MoveEngine {
             try await waitUntilSafe()
             guard let frame = Self.bounds(of: window) else { throw Failure.noBounds }
             let point = CGPoint(x: frame.midX, y: frame.midY)
-            guard Self.isSafeDropPoint(point) else { throw Failure.unsafeDropPoint }
+            guard Self.isSafeDropPoint(point) else {
+                Self.log("click \(window): icon isn't in a visible spot (\(point))")
+                throw Failure.unsafeDropPoint
+            }
+            Self.log("click \(window) (pid \(pid)) at \(point), \(deliverToApp ? "to app" : "HID")")
             let before = Self.windowIDs(of: pid)
             await withHiddenCursor(at: point) {
                 let down = self.mouseEvent(.leftMouseDown, at: point, window: window, pid: pid, flags: [], isMove: false)
@@ -148,7 +193,10 @@ final class MoveEngine {
     /// the menu bar is hidden.
     private func waitUntilSafe() async throws {
         for _ in 0..<20 {
-            guard MenuBarState.isMenuBarVisible() else { throw Failure.menuBarHidden }
+            guard MenuBarState.isMenuBarVisible() else {
+                Self.log("refused: menu bar hidden")
+                throw Failure.menuBarHidden
+            }
             let buttonDown = CGEventSource.buttonState(.combinedSessionState, button: .left)
                 || CGEventSource.buttonState(.combinedSessionState, button: .right)
             let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .mouseMoved)
