@@ -199,11 +199,11 @@ private struct ArrangeTab: View {
                         ForEach(arranger.leftWingRows) { row in
                             ArrangeRow(row: row, side: .leftWing, arranger: arranger, store: store)
                         }
-                        DropZone(title: "Drop here to hide it (shows in the Left Wing)", side: .leftWing, arranger: arranger)
+                        DropZone(title: "Drop here to hide it: first to go to the Left Wing", side: .leftWing, arranger: arranger)
                     } header: {
-                        Text("Hidden: shown in the Left Wing")
+                        Text("Left of the line: menu bar when there's room, else Left Wing")
                     } footer: {
-                        Text("Left of the line, left to right as in the menu bar and the Left Wing. The menu on each row sets where it may appear.")
+                        Text("Left to right, exactly as in the menu bar. macOS fills the bar from the right, so the icons at the bottom of this list stay in the menu bar and the ones at the top overflow into the Left Wing (all of them in Left Wing mode). Drag a row up to send it to the Left Wing, down to keep it in the menu bar. The menu on each row sets where Wingbar may show it.")
                     }
                     GroupsSection(store: store)
                 }
@@ -237,7 +237,7 @@ private struct ArrangeRow: View {
                 // Insertion line: the dropped icon goes here, before this row.
                 if targeted { Capsule().fill(Color.accentColor).frame(height: 3).offset(y: -5) }
             }
-            .modifier(DragSource(id: row.id, enabled: row.movable || side == .leftWing, icon: row.icon, title: row.item.displayName))
+            .modifier(DragSource(id: row.id, enabled: row.movable, icon: row.icon, title: row.item.displayName))
             .dropDestination(for: String.self) { ids, _ in
                 guard let id = ids.first else { return false }
                 arranger.drop(id, before: row, in: side)
@@ -249,7 +249,7 @@ private struct ArrangeRow: View {
         HStack(spacing: 10) {
             Image(systemName: "line.3.horizontal")
                 .foregroundStyle(.tertiary)
-                .opacity(row.movable || side == .leftWing ? 1 : 0)
+                .opacity(row.movable ? 1 : 0)
             Group {
                 if let icon = row.icon {
                     Image(nsImage: icon).resizable().aspectRatio(contentMode: .fit)
@@ -259,6 +259,7 @@ private struct ArrangeRow: View {
             }
             .frame(width: 44, height: 18)
             Text(row.item.displayName).lineLimit(1)
+            if side == .leftWing { WhereTag(row: row, leftWingMode: store.prefs.keepHiddenClosed) }
             if !row.movable {
                 Image(systemName: row.item.windowID == nil ? "exclamationmark.triangle" : "lock")
                     .foregroundStyle(.secondary)
@@ -306,6 +307,23 @@ private struct ArrangeRow: View {
             }
         }
         .buttonStyle(.borderless)
+    }
+}
+
+/// Where a hidden-list icon is right now, so the effect of a drag is visible.
+private struct WhereTag: View {
+    let row: Arranger.Row
+    let leftWingMode: Bool
+
+    var body: some View {
+        let (text, color): (String, Color) = row.item.windowID == nil
+            ? ("No room", .orange)
+            : row.isDrawn && !leftWingMode ? ("In menu bar", .green) : ("Left Wing", .accentColor)
+        Text(text)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6).padding(.vertical, 1)
+            .background(color.opacity(0.14), in: Capsule())
     }
 }
 

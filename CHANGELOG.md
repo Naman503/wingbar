@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Fixed
+- **Arranging moves the real icons, always.** A move planner keeps the longest run of icons already in order and moves only the rest, each next to a neighbour whose edge is visible (so "Slack before WARP" becomes one move: WARP right of Slack). When both neighbours are under the notch, it rebuilds the rest of the order next to Wingbar's line instead of silently changing only the list.
+- Both Arrange lists always show the real menu bar order; icons with no room at all are pinned at the top and can't be dragged. Each hidden row shows where it is now: in the menu bar, in the Left Wing, or no room.
+- The menu bar list no longer empties while the screen is locked or a full-screen app is in front.
+- Scanning is about 20× faster (3.5 s → 0.16 s first scan, ~13 ms after): apps are asked in parallel, and apps without menu bar icons are re-checked only every 30 s.
+- Launch at login follows the app if it moves (e.g. into Applications); new `--launch-at-login` flag.
+
 ## 0.2.0: 2026-10-26
 
 The first public release. Icons your MacBook's notch hides now appear in the free space on the other side of it, the **Left Wing**, looking and working like the real ones, and you can arrange both sides by drag and drop.

@@ -251,7 +251,7 @@ public enum ItemRule: String, Codable, CaseIterable, Sendable {
 
     public var title: String {
         switch self {
-        case .automatic: "Left Wing"
+        case .automatic: "Show"
         case .overflowOnly: "Overflow only"
         case .never: "Don't show"
         }

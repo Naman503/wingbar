@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import ScreenCaptureKit
+import ServiceManagement
 import SwiftUI
 import WingbarCore
 
@@ -18,6 +19,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var prefsObserver: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The login item remembers where the app was when it was turned on;
+        // re-register so it follows this copy after a move or an update.
+        // --launch-at-login turns it on (used by install scripts).
+        if SMAppService.mainApp.status == .enabled || CommandLine.arguments.contains("--launch-at-login") {
+            try? SMAppService.mainApp.register()
+        }
         sections = SectionController()
         leftWing = LeftWingController(sections: sections)
         sections.onChange = { [weak self] state in

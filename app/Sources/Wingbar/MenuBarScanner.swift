@@ -44,7 +44,13 @@ enum MenuBarScanner {
         var out = "AX trusted: \(AXIsProcessTrusted())\nown windows: \(ownWindows.sorted())\n\nwindows:\n"
         for w in statusWindows() { out += "  \(w.windowID) \(w.frame) onScreen=\(w.isOnScreen)\n" }
         out += "\nextras:\n"
-        for e in statusExtras().0 { out += "  \(e.frame) \(e.appName) pid=\(e.pid) [\(e.title)] \(e.identifier ?? "")\n" }
+        let started = Date()
+        let extras = statusExtras().0
+        let cold = Date().timeIntervalSince(started)
+        let warmStart = Date()
+        _ = statusExtras()
+        out += "  (cold read \(Int(cold * 1000)) ms, warm \(Int(Date().timeIntervalSince(warmStart) * 1000)) ms, \(NSWorkspace.shared.runningApplications.count) apps)\n"
+        for e in extras { out += "  \(e.frame) \(e.appName) pid=\(e.pid) [\(e.title)] \(e.identifier ?? "")\n" }
         out += "\nitems:\n"
         for i in scan(excluding: ownWindows).items { out += "  \(i.windowID.map(String.init) ?? "-") \(i.frame.minX) \(i.placement) \(i.displayName)\n" }
         return out
@@ -69,30 +75,52 @@ enum MenuBarScanner {
         }
     }
 
+    /// Apps found to have no menu bar icons, and when; they're asked again
+    /// only after `quietRecheck`, since most of ~100 running apps never have one.
+    nonisolated(unsafe) private static var quietApps = [pid_t: Date]()
+    private static let quietLock = NSLock()
+    private static let quietRecheck: TimeInterval = 30
+
     private static func statusExtras() -> ([StatusExtra], [AXUIElement]) {
         guard AXIsProcessTrusted() else { return ([], []) }
-        var extras = [StatusExtra]()
-        var elements = [AXUIElement]()
+        let now = Date()
         // Wingbar's own items are left out: their windows are filtered out too,
         // and the counts must agree for order-based matching.
-        for app in NSWorkspace.shared.runningApplications where app.processIdentifier != getpid() {
+        let apps = NSWorkspace.shared.runningApplications.filter { app in
+            guard app.processIdentifier != getpid() else { return false }
+            quietLock.lock(); defer { quietLock.unlock() }
+            guard let checked = quietApps[app.processIdentifier] else { return true }
+            return now.timeIntervalSince(checked) > quietRecheck
+        }
+
+        // Ask apps in parallel: one slow or hung app shouldn't hold up the rest.
+        var results = [[(StatusExtra, AXUIElement)]](repeating: [], count: apps.count)
+        let resultsLock = NSLock()
+        DispatchQueue.concurrentPerform(iterations: apps.count) { i in
+            let app = apps[i]
             let appElement = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(appElement, 0.25)
             guard let bar: AXUIElement = value(appElement, "AXExtrasMenuBar"),
-                  let children: [AXUIElement] = value(bar, kAXChildrenAttribute) else { continue }
+                  let children: [AXUIElement] = value(bar, kAXChildrenAttribute), !children.isEmpty else {
+                quietLock.lock(); quietApps[app.processIdentifier] = now; quietLock.unlock()
+                return
+            }
+            quietLock.lock(); quietApps[app.processIdentifier] = nil; quietLock.unlock()
+            var found = [(StatusExtra, AXUIElement)]()
             for child in children {
                 guard let frame = frame(of: child) else { continue }
                 let title = [value(child, kAXTitleAttribute), value(child, kAXDescriptionAttribute)]
                     .compactMap { (s: String?) in s?.trimmingCharacters(in: .whitespaces) }
                     .first { !$0.isEmpty } ?? ""
-                extras.append(StatusExtra(
+                found.append((StatusExtra(
                     frame: frame, pid: app.processIdentifier,
                     appName: app.localizedName ?? "Unknown", bundleID: app.bundleIdentifier,
-                    title: title, identifier: value(child, "AXIdentifier")))
-                elements.append(child)
+                    title: title, identifier: value(child, "AXIdentifier")), child))
             }
+            resultsLock.lock(); results[i] = found; resultsLock.unlock()
         }
-        return (extras, elements)
+        let all = results.flatMap { $0 }
+        return (all.map(\.0), all.map(\.1))
     }
 
     private static func value<T>(_ element: AXUIElement, _ attribute: String) -> T? {

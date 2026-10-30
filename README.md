@@ -134,7 +134,7 @@ open build/Wingbar.app
 
 Set `SIGN_IDENTITY` (e.g. `"Apple Development: …"`) when bundling to keep the signature stable, so macOS keeps the Accessibility and Screen Recording grants across rebuilds. Without it the app is ad-hoc signed.
 
-Launch flags for development: `--settings[=general|wing|arrange|spacing|permissions|about]`, `--onboarding`, `--dump-scan=<path>` (writes the raw menu bar scan).
+Launch flags: `--settings[=general|wing|arrange|spacing|permissions|about]`, `--onboarding`, `--launch-at-login` (turns on Launch at login), `--dump-scan=<path>` (writes the raw menu bar scan).
 
 ### Project layout
 
