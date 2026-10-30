@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.2.1: 2026-10-31
+
+Arranging now works the way you'd expect: drag icons into the order you want, press **Apply**, and Wingbar moves the real icons in one pass, around any app that refuses to be moved. Scanning is also about 20× faster.
+
 ### Changed
 - **Arrange, then Apply.** Dragging rows only edits a draft; *Apply* moves the real icons in one pass (with *Revert* to discard). The plan covers both sides of the line at once and moves as few icons as possible.
 - **Icons that ignore moves** (e.g. Cloudflare WARP) are detected, tagged "Won't move", remembered, and the other icons are arranged around them. The Left Wing explains instead of trying to move them into view.
